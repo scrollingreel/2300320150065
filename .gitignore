@@ -1,0 +1,5 @@
+node_modules/
+.env
+stage1/output/*.tmp
+notification_app_fe/node_modules/
+notification_app_fe/dist/
