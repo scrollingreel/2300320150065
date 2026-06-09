@@ -25,6 +25,87 @@ function readToken() {
   return line.split("=").slice(1).join("=").trim();
 }
 
+function extractCredentialsAndExpiry(token) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+    return {
+      credentials: {
+        email: payload.email,
+        name: payload.name,
+        rollNo: payload.rollNo,
+        accessCode: payload.accessCode,
+        clientID: payload.clientID,
+        clientSecret: payload.clientSecret
+      },
+      expiry: payload.exp ? payload.exp * 1000 : 0
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+async function refreshAndSaveToken() {
+  const token = readToken();
+  if (!token) {
+    console.error("No token found in .env, cannot refresh.");
+    return null;
+  }
+  const info = extractCredentialsAndExpiry(token);
+  if (!info || !info.credentials || !info.credentials.clientID) {
+    console.error("Could not extract credentials from token in .env");
+    return null;
+  }
+
+  try {
+    const response = await fetch("http://4.224.186.213/evaluation-service/auth", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(info.credentials)
+    });
+
+    if (!response.ok) {
+      console.error(`Auth service failed with status ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    if (data && data.access_token) {
+      const envPath = path.join(rootDirectory, ".env");
+      fs.writeFileSync(envPath, `VITE_ACCESS_TOKEN=${data.access_token}\n`, "utf8");
+      console.log("Successfully refreshed and wrote new token to .env");
+      return data.access_token;
+    }
+  } catch (error) {
+    console.error("Failed to automatically refresh token:", error.message);
+  }
+  return null;
+}
+
+async function getOrRefreshToken(forceRefresh = false) {
+  const token = readToken();
+  if (!token) return "";
+
+  if (!forceRefresh) {
+    const info = extractCredentialsAndExpiry(token);
+    if (info && info.expiry) {
+      const now = Date.now();
+      // If token is valid and has at least 60 seconds left, reuse it
+      if (info.expiry - now > 60 * 1000) {
+        return token;
+      }
+    }
+  }
+
+  // Otherwise, refresh it
+  console.log("Token is expired, expiring soon, or refresh was forced. Fetching fresh token...");
+  const newToken = await refreshAndSaveToken();
+  return newToken || token; // Fallback to old token if refresh fails
+}
+
 function contentTypeFor(filePath) {
   if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
   if (filePath.endsWith(".js")) return "application/javascript; charset=utf-8";
@@ -58,42 +139,42 @@ function serveFile(response, filePath) {
   });
 }
 
-function proxyNotifications(request, response, requestUrl) {
+async function proxyNotifications(request, response, requestUrl) {
   const upstreamUrl = new URL(apiUrl);
   upstreamUrl.search = requestUrl.search;
 
-  const requestModule = upstreamUrl.protocol === "https:" ? https : http;
-
-  const upstreamRequest = requestModule.request(
-    upstreamUrl,
-    {
+  try {
+    let token = await getOrRefreshToken();
+    let upstreamResponse = await fetch(upstreamUrl.toString(), {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${readToken()}`
+        Authorization: `Bearer ${token}`
       }
-    },
-    (upstreamResponse) => {
-      let body = "";
+    });
 
-      upstreamResponse.setEncoding("utf8");
-      upstreamResponse.on("data", (chunk) => {
-        body += chunk;
-      });
-      upstreamResponse.on("end", () => {
-        response.writeHead(upstreamResponse.statusCode || 500, {
-          "Content-Type": upstreamResponse.headers["content-type"] || "application/json; charset=utf-8",
-          "Access-Control-Allow-Origin": "*"
-        });
-        response.end(body);
+    // If 401 Unauthorized, force refresh the token and retry once
+    if (upstreamResponse.status === 401) {
+      console.log("Upstream returned 401. Refreshing token and retrying...");
+      token = await getOrRefreshToken(true);
+      upstreamResponse = await fetch(upstreamUrl.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
     }
-  );
 
-  upstreamRequest.on("error", (error) => {
+    const contentType = upstreamResponse.headers.get("content-type") || "application/json; charset=utf-8";
+    const body = await upstreamResponse.text();
+
+    response.writeHead(upstreamResponse.status, {
+      "Content-Type": contentType,
+      "Access-Control-Allow-Origin": "*"
+    });
+    response.end(body);
+  } catch (error) {
     sendJson(response, 500, { message: error.message });
-  });
-
-  upstreamRequest.end();
+  }
 }
 
 const server = http.createServer((request, response) => {

@@ -1,8 +1,4 @@
-const API_URL = "http://4.224.186.213/evaluation-service/notifications";
-
-function readToken() {
-  return import.meta.env.VITE_ACCESS_TOKEN || "";
-}
+const API_URL = "/api/notifications";
 
 function extractItems(payload) {
   if (Array.isArray(payload.notifications)) {
@@ -43,7 +39,7 @@ function extractTotal(payload) {
 }
 
 export async function fetchNotifications({ page, limit, notificationType, signal }) {
-  const url = new URL(API_URL);
+  const url = new URL(API_URL, window.location.origin);
   url.searchParams.set("page", String(page));
   url.searchParams.set("limit", String(limit));
 
@@ -53,9 +49,6 @@ export async function fetchNotifications({ page, limit, notificationType, signal
 
   const response = await fetch(url.toString(), {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${readToken()}`
-    },
     signal
   });
 

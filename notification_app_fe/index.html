@@ -4,9 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Campus Notifications Stage 2</title>
-    <script>
-      window.ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiYXVkIjoiaHR0cDovLzIwLjI0NC41Ni4xNDQvZXZhbHVhdGlvbi1zZXJ2aWNlIiwiZW1haWwiOiJ1dGthcnNoMzEzNkBnbWFpbC5jb20iLCJleHAiOjE3ODA5ODcxNjksImlhdCI6MTc4MDk4NjI2OSwiaXNzIjoiQWZmb3JkIE1lZGljYWwgVGVjaG5vbG9naWVzIFByaXZhdGUgTGltaXRlZCIsImp0aSI6IjhmMjk5ZTFlLTRmODYtNGFiYy05NDE0LWI0NjMzMjAwZDc0ZSIsImxvY2FsZSI6ImVuLUlOIiwibmFtZSI6InV0a2Fyc2ggZ3VwdGEiLCJzdWIiOiI2YzE4ODkwZC1jNGQ5LTRiMjUtOTg1ZC0xMGQyZjgwZTNlMGIifSwiZW1haWwiOiJ1dGthcnNoMzEzNkBnbWFpbC5jb20iLCJuYW1lIjoidXRrYXJzaCBndXB0YSIsInJvbGxObyI6IjIzMDAzMjAxNTAwNjUiLCJhY2Nlc3NDb2RlIjoiY1h1cWh0IiwiY2xpZW50SUQiOiI2YzE4ODkwZC1jNGQ5LTRiMjUtOTg1ZC0xMGQyZjgwZTNlMGIiLCJjbGllbnRTZWNyZXQiOiJjSG1IZ1BXUmdNcEJKakR0In0.obq226IE67rhpl_ICnYBNS5TEnach__-HTbVM4cZZ80";
-    </script>
+
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@mui/material@5.16.14/umd/material-ui.development.js"></script>
@@ -69,9 +67,7 @@
       const TYPES = ['', 'Event', 'Result', 'Placement'];
       const LIMITS = [5, 10, 20, 50];
 
-      function readToken() {
-        return window.ACCESS_TOKEN || '';
-      }
+
 
       function normalizeItems(payload) {
         if (Array.isArray(payload.notifications)) return payload.notifications;
@@ -101,7 +97,6 @@
         if (notificationType) url.searchParams.set('notification_type', notificationType);
 
         const response = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${readToken()}` },
           signal
         });
 
